@@ -3,8 +3,8 @@
 	ref="buttonEl"
 	v-ripple="canToggle"
 	class="_button"
-	:class="[$style.root, { [$style.reacted]: note.myReaction == reaction, [$style.canToggle]: (canToggle || alternative), [$style.large]: defaultStore.state.largeNoteReactions }]"
-	@click="toggleReaction"
+	:class="[$style.root, { [$style.reacted]: note.myReaction == reaction, [$style.canToggle]: (canToggle || targetEmoji), [$style.large]: defaultStore.state.largeNoteReactions }]"
+	@click="toggleReaction()"
 >
 	<MkReactionIcon :class="$style.icon" :reaction="reaction" :emoji-url="note.reactionEmojis[reaction.substr(1, reaction.length - 2)]"/>
 	<span :class="$style.count">{{ count }}</span>
@@ -33,18 +33,18 @@ const props = defineProps<{
 
 const buttonEl = shallowRef<HTMLElement>();
 
+const canToggle = computed(() => !props.reaction.match(/@\w/) && $i);
+
 const reactionName = computed(() => {
 	const r = props.reaction.replace(':', '');
 	return r.slice(0, r.indexOf('@'));
 });
 
-const alternative: ComputedRef<string | null> = computed(() => (customEmojis).find(it => it.name === reactionName.value)?.name);
+const targetEmoji: ComputedRef<string | null> = computed(() => customEmojis.value.find(it => it.name === reactionName.value)?.name ?? null);
 
-const canToggle = computed(() => !props.reaction.match(/@\w/) && $i);
-
-const toggleReaction = (ev) => {
+const toggleReaction = () => {
 	if (!canToggle.value) {
-		chooseAlternative(ev);
+		chooseSelfInstance();
 		return;
 	}
 
@@ -71,6 +71,14 @@ const toggleReaction = (ev) => {
 	}
 };
 
+const chooseSelfInstance = () => {
+	if (!targetEmoji.value) return;
+	os.api('notes/reactions/create', {
+		noteId: props.note.id,
+		reaction: `:${targetEmoji.value}:`,
+	});
+};
+
 const anime = () => {
 	if (document.hidden) return;
 	if (!defaultStore.state.animation) return;
@@ -79,16 +87,6 @@ const anime = () => {
 	const x = rect.left + 16;
 	const y = rect.top + (buttonEl.value.offsetHeight / 2);
 	os.popup(MkReactionEffect, { reaction: props.reaction, x, y }, {}, 'end');
-};
-
-const chooseAlternative = (ev) => {
-	// メニュー表示にして、モデレーター以上の場合は登録もできるように
-	if (!alternative.value) return;
-	console.log(alternative.value);
-	os.api('notes/reactions/create', {
-		noteId: props.note.id,
-		reaction: `:${alternative.value}:`,
-	});
 };
 
 watch(() => props.count, (newCount, oldCount) => {
