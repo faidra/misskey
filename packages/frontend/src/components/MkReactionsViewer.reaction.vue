@@ -6,7 +6,7 @@
 	:class="[$style.root, { [$style.reacted]: note.myReaction == reaction, [$style.canToggle]: (canToggle || targetEmoji), [$style.large]: defaultStore.state.largeNoteReactions }]"
 	@click="toggleReaction()"
 >
-	<MkReactionIcon :class="$style.icon" :reaction="reaction" :emoji-url="note.reactionEmojis[reaction.substr(1, reaction.length - 2)]"/>
+	<MkReactionIcon :class="$style.icon" :reaction="reaction" :emojiUrl="note.reactionEmojis[reaction.substring(1, reaction.length - 1)]"/>
 	<span :class="$style.count">{{ count }}</span>
 </button>
 </template>
@@ -23,6 +23,7 @@ import MkReactionEffect from '@/components/MkReactionEffect.vue';
 import { claimAchievement } from '@/scripts/achievements';
 import { defaultStore } from '@/store';
 import { customEmojis } from '@/custom-emojis';
+import { i18n } from '@/i18n';
 
 const props = defineProps<{
 	reaction: string;
@@ -42,14 +43,22 @@ const reactionName = computed(() => {
 
 const targetEmoji: ComputedRef<string | null> = computed(() => customEmojis.value.find(it => it.name === reactionName.value)?.name ?? null);
 
-const toggleReaction = () => {
+async function toggleReaction() {
 	if (!canToggle.value) {
 		chooseSelfInstance();
 		return;
 	}
 
+	// TODO: その絵文字を使う権限があるかどうか確認
+
 	const oldReaction = props.note.myReaction;
 	if (oldReaction) {
+		const confirm = await os.confirm({
+			type: 'warning',
+			text: oldReaction !== props.reaction ? i18n.ts.changeReactionConfirm : i18n.ts.cancelReactionConfirm,
+		});
+		if (confirm.canceled) return;
+
 		os.api('notes/reactions/delete', {
 			noteId: props.note.id,
 		}).then(() => {
@@ -69,7 +78,7 @@ const toggleReaction = () => {
 			claimAchievement('reactWithoutRead');
 		}
 	}
-};
+}
 
 const chooseSelfInstance = () => {
 	if (!targetEmoji.value) return;
@@ -79,7 +88,7 @@ const chooseSelfInstance = () => {
 	});
 };
 
-const anime = () => {
+function anime() {
 	if (document.hidden) return;
 	if (!defaultStore.state.animation) return;
 
@@ -87,7 +96,7 @@ const anime = () => {
 	const x = rect.left + 16;
 	const y = rect.top + (buttonEl.value.offsetHeight / 2);
 	os.popup(MkReactionEffect, { reaction: props.reaction, x, y }, {}, 'end');
-};
+}
 
 watch(() => props.count, (newCount, oldCount) => {
 	if (oldCount < newCount) anime();
